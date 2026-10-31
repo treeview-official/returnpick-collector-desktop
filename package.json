@@ -1,0 +1,43 @@
+{
+  "name": "returnpick-collector-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "반품마켓·골드박스 목록 수집 전용 Windows 앱",
+  "author": "ReturnPick",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "src/bootstrap.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/browser.test.mjs tests/goldbox.test.mjs tests/storage.test.mjs",
+    "smoke": "electron . --smoke-test",
+    "pack": "electron-builder --win --dir --publish never",
+    "dist": "electron-builder --win nsis portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "kr.returnpick.collector",
+    "productName": "ReturnPick Collector",
+    "asar": true,
+    "directories": { "output": "release" },
+    "files": ["src/**/*", "package.json", "README.md"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "ReturnPick-Collector-${version}-${arch}-setup.${ext}"
+    },
+    "portable": { "artifactName": "ReturnPick-Collector-${version}-${arch}-portable.${ext}" },
+    "publish": null
+  }
+}
