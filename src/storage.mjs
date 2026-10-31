@@ -15,7 +15,7 @@ export function csvText(rows) {
   return '\uFEFF' + [fields.map(cell).join(','), ...rows.map(row => fields.map(field => cell(row[field])).join(','))].join('\r\n');
 }
 export function saveExport(root, source, data) {
-  if (!['returns', 'goldbox'].includes(source) || !/^[\w-]+$/.test(data.runId)) throw new Error('잘못된 저장 정보입니다.');
+  if (!['returns', 'goldbox', 'specials'].includes(source) || !/^[\w-]+$/.test(data.runId)) throw new Error('잘못된 저장 정보입니다.');
   const base = path.join(root, source);
   const runFolder = path.join(base, data.runId);
   fs.mkdirSync(runFolder, { recursive: true });

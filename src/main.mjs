@@ -8,7 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const smoke = process.argv.includes('--smoke-test');
 const probe = process.argv.includes('--probe-list');
 const collectTest = process.argv.includes('--collect-test');
-if (smoke || probe || collectTest) app.setPath('userData', path.join(app.getPath('temp'), `returnpick-electron-test-${process.pid}`));
+const collectAll = process.argv.includes('--collect-all');
+if (smoke || probe || collectTest || collectAll) app.setPath('userData', path.join(app.getPath('temp'), `returnpick-electron-test-${process.pid}`));
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   let window, collector, closing = false;
@@ -19,7 +20,7 @@ else {
   window = new BrowserWindow({
     width: 1080, height: 820, minWidth: 880, minHeight: 710,
     title: 'ReturnPick Collector', backgroundColor: '#f5f7fb',
-    webPreferences: { preload: path.join(here, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true }
+    webPreferences: { preload: path.join(here, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, backgroundThrottling: false }
   });
   const uiPath = path.join(here, 'ui', 'index.html');
   const diagnostics = app.isPackaged ? path.join(app.getPath('temp'), 'ReturnPick-Collector-tests') : path.join(app.getAppPath(), '.runtime');
@@ -44,7 +45,7 @@ else {
   window.on('close', async event => {
     if (closing) return;
     event.preventDefault();
-    if (collector.running && !smoke && !probe && !collectTest) {
+    if (collector.running && !smoke && !probe && !collectTest && !collectAll) {
       const answer = await dialog.showMessageBox(window, { type: 'question', buttons: ['계속 수집', '저장 후 종료'], defaultId: 0, cancelId: 0, title: '수집 중입니다', message: '수집을 중지하고 현재 결과를 저장한 뒤 종료할까요?' });
       if (answer.response === 0) return;
     }
@@ -54,8 +55,22 @@ else {
   });
   await window.loadFile(uiPath);
   app.on('window-all-closed', () => app.quit());
+  if (collectAll) {
+    const source = 'specials', outputDir = path.join(diagnostics, 'full-live-test');
+    fs.mkdirSync(outputDir, { recursive: true });
+    collector.settings({ sourceKey: source, outputDir, repeat: false });
+    collector.on('change', state => fs.writeFileSync(path.join(outputDir, 'progress.json'), JSON.stringify({ phase: state.phase, count: state.count, actions: state.actions, action: state.lastAction, error: state.error, checkpoint: collector.checkpoint(source) }, null, 2)));
+    try {
+      collector.start(false); await collector.running;
+      const data = JSON.parse(fs.readFileSync(collector.checkpoint(source), 'utf8'));
+      const result = { count: data.productCount, complete: data.collectionComplete, coverage: data.coverage, outputDir };
+      fs.writeFileSync(path.join(outputDir, 'result.json'), JSON.stringify(result, null, 2));
+      console.log('FULL_COLLECTION_RESULT', JSON.stringify(result));
+      await collector.shutdown(); app.exit(data.collectionComplete ? 0 : 2);
+    } catch (error) { console.error(error.message); await collector.shutdown(); app.exit(1); }
+  }
   if (collectTest) {
-    const source = process.argv.includes('--goldbox') ? 'goldbox' : 'returns';
+    const source = process.argv.includes('--specials') ? 'specials' : process.argv.includes('--goldbox') ? 'goldbox' : 'returns';
     const outputDir = path.join(diagnostics, 'live-test', source);
     collector.settings({ sourceKey: source, outputDir });
     const stopAfter = state => { if (state.phase === 'running' && state.actions >= 2) collector.stop(); };
@@ -76,10 +91,13 @@ else {
     try {
       const result = await window.webContents.executeJavaScript(`(async () => {
         const state = await window.collector.state();
-        return { bridge: !!state.config, buttons: document.querySelectorAll('button').length, title: document.title, nodeBlocked: typeof require === 'undefined', overflow: document.documentElement.scrollWidth > innerWidth };
+        await window.collector.settings({ sourceKey: 'specials' });
+        const specials = (await window.collector.state()).config.sourceKey === 'specials' && document.querySelector('[data-source="specials"]');
+        return { bridge: !!state.config, specials: !!specials, buttons: document.querySelectorAll('button').length, title: document.title, nodeBlocked: typeof require === 'undefined', overflow: document.documentElement.scrollWidth > innerWidth };
       })()`);
-      if (!result.bridge || !result.nodeBlocked || result.overflow) throw new Error(JSON.stringify(result));
-      await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
+      if (!result.bridge || !result.specials || !result.nodeBlocked || result.overflow) throw new Error(JSON.stringify(result));
+      // Hidden-window test runs may suspend animation frames; keep this wait bounded.
+      await Promise.race([window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))'), new Promise(resolve => setTimeout(resolve, 1500))]);
       let png;
       for (let attempt = 0; attempt < 4; attempt++) {
         try { png = await window.webContents.capturePage(); break; }

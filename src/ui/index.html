@@ -10,7 +10,7 @@
 <body>
   <main>
     <header>
-      <div class="brand"><span class="brand-icon">R</span><div><h1>리턴픽 <em>Collector</em></h1><p>반품마켓 & 골드박스 목록 수집</p></div></div>
+      <div class="brand"><span class="brand-icon">R</span><div><h1>리턴픽 <em>Collector</em></h1><p>반품마켓 · 골드박스 · 판매자특가 목록 수집</p></div></div>
       <span class="private-label"><span></span> 내 PC에 저장</span>
     </header>
     <section class="panel setup">
@@ -18,6 +18,7 @@
       <div class="sources" role="group" aria-label="수집 목록">
         <button data-source="returns" class="source selected" aria-pressed="true"><span class="source-symbol">↩</span><span><strong>반품마켓</strong><small>상품 · 가격 · 할인율 · 등급 · 표시 개수</small></span><span class="check">✓</span></button>
         <button data-source="goldbox" class="source" aria-pressed="false"><span class="source-symbol gold">◇</span><span><strong>골드박스</strong><small>판매율 · 남은 시간 · 후기 · 별점 · 배송</small></span><span class="check">✓</span></button>
+        <button data-source="specials" class="source" aria-pressed="false"><span class="source-symbol">%</span><span><strong>판매자특가</strong><small>전체 탭 · 가격 · 남은 시간 · 후기 · 배송</small></span><span class="check">✓</span></button>
       </div>
       <div class="options">
         <label class="repeat-option"><input id="repeat" type="checkbox"><span>자동 반복 수집</span></label>
@@ -41,7 +42,7 @@
       <span class="folder-icon">▤</span><div><h2>결과 저장 폴더 <span>JSON + CSV</span></h2><p id="folder">불러오는 중…</p></div><button id="choose" class="secondary small">변경</button><button id="open" class="secondary small">폴더 열기 ↗</button>
     </section>
     <section class="panel log-panel"><div class="section-title"><h2>수집 기록</h2><span>수집 중에도 결과를 차례로 보관합니다</span></div><div id="logs" role="log"><p class="empty">수집을 시작하면 진행 기록이 표시됩니다.</p></div></section>
-    <footer><span>천천히 스크롤 · 중복 제거 · 중간 결과 이어받기</span><span>ReturnPick Collector 1.0</span></footer>
+    <footer><span>천천히 스크롤 · 중복 제거 · 중간 결과 이어받기</span><span>ReturnPick Collector 1.1</span></footer>
   </main>
   <div id="toast" role="alert" hidden></div>
   <script src="app.js"></script>

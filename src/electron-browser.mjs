@@ -1,4 +1,4 @@
-// Small Electron implementation of the browser operations used by the two list engines.
+// Small Electron implementation of the browser operations used by the list engines.
 // Remote pages have no preload, Node access, IPC bridge, or exposed debugging port.
 import { BrowserWindow, session } from 'electron';
 import { EventEmitter } from 'node:events';
@@ -69,22 +69,34 @@ export class ElectronPage extends EventEmitter {
       if (this.logs.length > 30) this.logs.shift();
     });
     wc.debugger.attach('1.3');
-    const requests = new Map();
+    const requests = new Map(), promotionRequests = new Map();
+    const promotionListing = url => /^https:\/\/www\.coupang\.com\/np\/omp\/api\/getPromotion(?:\?|$)/.test(url);
     wc.debugger.on('message', async (_event, method, data) => {
+      if (method === 'Network.requestWillBeSent' && promotionListing(data.request.url)) {
+        let categoryKey = null;
+        try {
+          const key = JSON.parse(data.request.postData || '{}').query?.SMART_CATEGORY;
+          if (typeof key === 'string' && /^[A-Z_]{1,80}$/.test(key)) categoryKey = key;
+        } catch {}
+        promotionRequests.set(data.requestId, { categoryKey, startedAt: Date.now() });
+      }
       if (method === 'Network.responseReceived') {
         const { response } = data;
-        if (/^https:\/\/pages\.coupang\.com\/api\/(products|parts\/)/.test(response.url)) requests.set(data.requestId, response);
+        if (/^https:\/\/pages\.coupang\.com\/api\/(products|parts\/)/.test(response.url) || promotionListing(response.url)) requests.set(data.requestId, response);
       }
       if (method === 'Network.loadingFinished' && requests.has(data.requestId)) {
         const response = requests.get(data.requestId); requests.delete(data.requestId);
-        this.emit('response', { url: () => response.url, status: () => response.status, json: async () => {
+        const metadata = promotionRequests.get(data.requestId); promotionRequests.delete(data.requestId);
+        this.emit('response', { url: () => response.url, status: () => response.status,
+          categoryKey: () => metadata?.categoryKey, requestStartedAt: () => metadata?.startedAt, json: async () => {
           const body = await wc.debugger.sendCommand('Network.getResponseBody', { requestId: data.requestId });
           return JSON.parse(body.base64Encoded ? Buffer.from(body.body, 'base64').toString() : body.body);
         }});
       }
-      if (method === 'Network.loadingFailed' && requests.has(data.requestId)) {
-        const response = requests.get(data.requestId); requests.delete(data.requestId);
-        this.emit('requestfailed', { url: () => response.url });
+      if (method === 'Network.loadingFailed') {
+        const response = requests.get(data.requestId), promotion = promotionRequests.has(data.requestId);
+        requests.delete(data.requestId); promotionRequests.delete(data.requestId);
+        if (response || promotion) this.emit('requestfailed', { url: () => response?.url || 'https://www.coupang.com/np/omp/api/getPromotion' });
       }
     });
     this.ready = wc.debugger.sendCommand('Network.enable');

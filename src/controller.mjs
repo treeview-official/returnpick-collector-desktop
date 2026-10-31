@@ -5,6 +5,7 @@ import { powerSaveBlocker } from 'electron';
 import { ElectronPage, helpers } from './electron-browser.mjs';
 import * as returns from './engine/browser.mjs';
 import * as goldbox from './engine/goldbox.mjs';
+import * as specials from './engine/specials.mjs';
 import { readJson, writeJson, saveExport } from './storage.mjs';
 
 export const defaults = Object.freeze({ sourceKey: 'returns', intervalMinutes: 60, repeat: false, pauseMs: 3000, scrollPixels: 650 });
@@ -12,7 +13,7 @@ export function validateSettings(value, previous = defaults) {
   if (!value || typeof value !== 'object') throw new Error('설정 형식이 올바르지 않습니다.');
   const result = { ...previous };
   if ('sourceKey' in value) {
-    if (!['returns', 'goldbox'].includes(value.sourceKey)) throw new Error('수집할 목록을 선택해주세요.');
+    if (!['returns', 'goldbox', 'specials'].includes(value.sourceKey)) throw new Error('수집할 목록을 선택해주세요.');
     result.sourceKey = value.sourceKey;
   }
   if ('intervalMinutes' in value) {
@@ -36,7 +37,7 @@ export class Collector extends EventEmitter {
     try { this.config = validateSettings(stored); } catch { this.config = { ...defaults }; }
     this.outputDir = typeof stored.outputDir === 'string' && path.isAbsolute(stored.outputDir) ? stored.outputDir : outputDir;
     this.state = { phase: 'idle', count: 0, actions: 0, lastAction: '수집할 목록을 선택하고 시작해주세요.', logs: [], nextRunAt: null, lastResults: {} };
-    for (const source of ['returns', 'goldbox']) {
+    for (const source of ['returns', 'goldbox', 'specials']) {
       const saved = readJson(this.checkpoint(source));
       if (saved) this.state.lastResults[source] = this.summary(saved);
     }
@@ -83,7 +84,7 @@ export class Collector extends EventEmitter {
     return this.snapshot();
   }
   async run(source, resume) {
-    const module = source === 'goldbox' ? goldbox : returns;
+    const module = { returns, goldbox, specials }[source];
     const checkpointFile = this.checkpoint(source);
     const stopFile = path.join(path.dirname(checkpointFile), 'stop');
     fs.mkdirSync(path.dirname(checkpointFile), { recursive: true });
@@ -91,7 +92,7 @@ export class Collector extends EventEmitter {
     const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_') + '-' + source;
     let job, failure;
     const blocker = powerSaveBlocker.start('prevent-app-suspension');
-    this.log(`${source === 'goldbox' ? '골드박스' : '반품마켓'} ${resume ? '이어 ' : ''}수집을 시작했습니다.`);
+    this.log(`${{ returns: '반품마켓', goldbox: '골드박스', specials: '판매자특가 전체 탭' }[source]} ${resume ? '이어 ' : ''}수집을 시작했습니다.`);
     try {
       job = await module.initialize({
         context: { newPage: async () => {
